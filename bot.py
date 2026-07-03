@@ -4,6 +4,7 @@ from datetime import datetime
 from flask import Flask, jsonify
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
+from telegram.constants import ChatType
 
 # ====== FLASK FOR RENDER ======
 flask_app = Flask(__name__)
@@ -19,7 +20,7 @@ def run_flask():
 
 # ====== CONFIG ======
 BOT_TOKEN = "8885172416:AAFRtSo5uGlTSZBBQgU62Xal8XPgu571tjg"
-OWNER_ID = 7977493987
+OWNER_ID = 8586849798
 CHANNEL = "@KALYUGESCROWSERVICE"
 ADMINS = [OWNER_ID]
 EXTRA_GROUPS = []
@@ -30,39 +31,43 @@ DICE_PREDS = []
 COIN_PREDS = []
 PRED_INDEX = 0
 
-# Load saved data
+# ====== DATA LOAD ======
 def load_data():
-    global USERS, BANNED, DEALS, ADMINS, EXTRA_GROUPS, DICE_PREDS, COIN_PREDS, PRED_INDEX
-    for f, d in [("users.json", USERS), ("banned.json", BANNED), ("deals.json", DEALS), 
-                  ("admins.json", ADMINS), ("extra_groups.json", EXTRA_GROUPS),
-                  ("dice_preds.json", DICE_PREDS), ("coin_preds.json", COIN_PREDS)]:
-        if os.path.exists(f):
-            try:
-                data = json.load(open(f))
-                if isinstance(data, dict): d.update(data)
-                elif isinstance(data, list): 
-                    d.clear()
-                    d.extend(data)
-            except: pass
-    
-    # Load PRED_INDEX
-    if os.path.exists("pred_index.json"):
-        try:
-            PRED_INDEX = json.load(open("pred_index.json"))
-        except:
-            PRED_INDEX = 0
+    global ADMINS, EXTRA_GROUPS, USERS, BANNED, DEALS, DICE_PREDS, COIN_PREDS, PRED_INDEX
+    try:
+        if os.path.exists("admins.json"):
+            with open("admins.json") as f: ADMINS = json.load(f)
+        if os.path.exists("extra_groups.json"):
+            with open("extra_groups.json") as f: EXTRA_GROUPS = json.load(f)
+        if os.path.exists("users.json"):
+            with open("users.json") as f: USERS = json.load(f)
+        if os.path.exists("banned.json"):
+            with open("banned.json") as f: BANNED = json.load(f)
+        if os.path.exists("deals.json"):
+            with open("deals.json") as f: DEALS = json.load(f)
+        if os.path.exists("dice_preds.json"):
+            with open("dice_preds.json") as f: DICE_PREDS = json.load(f)
+        if os.path.exists("coin_preds.json"):
+            with open("coin_preds.json") as f: COIN_PREDS = json.load(f)
+        if os.path.exists("pred_index.json"):
+            with open("pred_index.json") as f: PRED_INDEX = json.load(f)
+    except Exception as e:
+        print(f"⚠️ Load error (normal if first run): {e}")
 
 load_data()
 
 def save_all():
-    json.dump(USERS, open("users.json","w"), indent=2)
-    json.dump(BANNED, open("banned.json","w"), indent=2)
-    json.dump(DEALS, open("deals.json","w"), indent=2)
-    json.dump(ADMINS, open("admins.json","w"), indent=2)
-    json.dump(EXTRA_GROUPS, open("extra_groups.json","w"), indent=2)
-    json.dump(DICE_PREDS, open("dice_preds.json","w"), indent=2)
-    json.dump(COIN_PREDS, open("coin_preds.json","w"), indent=2)
-    json.dump(PRED_INDEX, open("pred_index.json","w"))
+    try:
+        with open("admins.json","w") as f: json.dump(ADMINS, f, indent=2)
+        with open("extra_groups.json","w") as f: json.dump(EXTRA_GROUPS, f, indent=2)
+        with open("users.json","w") as f: json.dump(USERS, f, indent=2)
+        with open("banned.json","w") as f: json.dump(BANNED, f, indent=2)
+        with open("deals.json","w") as f: json.dump(DEALS, f, indent=2)
+        with open("dice_preds.json","w") as f: json.dump(DICE_PREDS, f, indent=2)
+        with open("coin_preds.json","w") as f: json.dump(COIN_PREDS, f, indent=2)
+        with open("pred_index.json","w") as f: json.dump(PRED_INDEX, f)
+    except Exception as e:
+        print(f"⚠️ Save error: {e}")
 
 # ====== STYLISH TEXT ======
 BOLD = "𝐀𝐁𝐂𝐃𝐄𝐅𝐆𝐇𝐈𝐉𝐊𝐋𝐌𝐍𝐎𝐏𝐐𝐑𝐒𝐓𝐔𝐕𝐖𝐗𝐘𝐙𝐚𝐛𝐜𝐝𝐞𝐟𝐠𝐡𝐢𝐣𝐤𝐥𝐦𝐧𝐨𝐩𝐪𝐫𝐬𝐭𝐮𝐯𝐰𝐱𝐲𝐳𝟎𝟏𝟐𝟑𝟒𝟓𝟔𝟕𝟖𝟗"
@@ -72,7 +77,7 @@ FM = {n: b for n, b in zip(NORM, BOLD)}
 def F(t):
     return ''.join(FM.get(c, c) for c in t)
 
-# ====== PREMIUM EMOJIS (TERE PREMIUM ACCOUNT KE SAATH KAAM KARENGE) ======
+# ====== PREMIUM EMOJIS ======
 EMOJIS = {
     "verified": ("6246537187614005254", "✅"),
     "fire": ("4956222745814762495", "🔥"),
@@ -103,7 +108,6 @@ EMOJIS = {
 }
 
 def E(name):
-    """Premium emoji HTML tag - tere Telegram Premium se real premium emoji dikhenge"""
     if name in EMOJIS:
         eid, fb = EMOJIS[name]
         return f'<tg-emoji emoji-id="{eid}">{fb}</tg-emoji>'
@@ -113,7 +117,6 @@ def R():
     return E(random.choice(list(EMOJIS.keys())))
 
 def BORD(text):
-    """Har line ke aage piche premium emoji"""
     return '\n'.join(f"{R()} {l} {R()}" if l.strip() else l for l in text.split('\n'))
 
 # ====== HELPERS ======
@@ -241,9 +244,10 @@ async def dice(upd, ctx):
     result = msg.dice.value
     
     global DICE_PREDS, PRED_INDEX
-    if PRED_INDEX < len(DICE_PREDS):
-        DICE_PREDS[PRED_INDEX] = result
-    PRED_INDEX = (PRED_INDEX + 1) % 10
+    idx = PRED_INDEX
+    if idx < len(DICE_PREDS):
+        DICE_PREDS[idx] = result
+    PRED_INDEX = (idx + 1) % 10
     save_all()
     
     ds = ["⚀","⚁","⚂","⚃","⚄","⚅"]
@@ -267,11 +271,12 @@ async def coin(upd, ctx):
     
     seq = ["HEAD","HEAD","TAIL","HEAD","TAIL","TAIL","HEAD","TAIL","TAIL","HEAD","HEAD","TAIL","TAIL"]
     global PRED_INDEX, COIN_PREDS
-    result = seq[PRED_INDEX % len(seq)]
+    idx = PRED_INDEX
+    result = seq[idx % len(seq)]
     
-    if PRED_INDEX < len(COIN_PREDS):
-        COIN_PREDS[PRED_INDEX] = result
-    PRED_INDEX = (PRED_INDEX + 1) % 10
+    if idx < len(COIN_PREDS):
+        COIN_PREDS[idx] = result
+    PRED_INDEX = (idx + 1) % 10
     save_all()
     
     ce = "🦅" if result == "HEAD" else "🪙"
@@ -290,7 +295,8 @@ async def coin(upd, ctx):
 async def showmydice(upd, ctx):
     if not OWN(upd.effective_user.id): return await upd.message.reply_text(f"❌ {F('Owner only')}")
     global DICE_PREDS, PRED_INDEX
-    n3 = DICE_PREDS[PRED_INDEX:PRED_INDEX+3]
+    idx = PRED_INDEX
+    n3 = DICE_PREDS[idx:idx+3]
     while len(n3) < 3: n3.append(random.randint(1,6))
     txt = BORD(f"""🔮 {F('NEXT 3 DICE')} 🔮
 {F('━━━━━━━━━━━━━━')}
@@ -303,7 +309,8 @@ async def showmydice(upd, ctx):
 async def showmycoin(upd, ctx):
     if not OWN(upd.effective_user.id): return await upd.message.reply_text(f"❌ {F('Owner only')}")
     global COIN_PREDS, PRED_INDEX
-    n3 = COIN_PREDS[PRED_INDEX:PRED_INDEX+3]
+    idx = PRED_INDEX
+    n3 = COIN_PREDS[idx:idx+3]
     while len(n3) < 3: n3.append(random.choice(["HEAD","TAIL"]))
     txt = BORD(f"""🔮 {F('NEXT 3 COIN')} 🔮
 {F('━━━━━━━━━━━━━━')}
@@ -521,7 +528,8 @@ def main():
     app.add_handler(CommandHandler("addadmin", addadmin))
     app.add_handler(CommandHandler("removeadmin", removeadmin))
     app.add_handler(CommandHandler("sendalso", sendalso))
-    app.add_handler(MessageHandler(filters.TEXT & filters.GROUP, form_handler))
+    # FIXED: filters.ChatType.GROUPS instead of filters.GROUP
+    app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.GROUPS, form_handler))
     app.add_handler(CallbackQueryHandler(cb))
     print(f"✅ BOT STARTED! Owner: {OWNER_ID} | Premium Emojis: {len(EMOJIS)}")
     app.run_polling(allowed_updates=["message", "callback_query"])
