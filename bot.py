@@ -1,4 +1,4 @@
-import re, os, json, random, threading
+import re, os, json, random, threading, time, requests
 from uuid import uuid4
 from datetime import datetime
 from flask import Flask, jsonify
@@ -31,26 +31,34 @@ DICE_PREDS = []
 COIN_PREDS = []
 PRED_INDEX = 0
 
+# ====== WEBHOOK CLEAR ON START ======
+def clear_webhook():
+    try:
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook?drop_pending_updates=true"
+        r = requests.get(url)
+        print(f"🌐 Webhook clear response: {r.json()}")
+    except Exception as e:
+        print(f"⚠️ Webhook clear error: {e}")
+
+clear_webhook()
+
 # ====== DATA LOAD ======
 def load_data():
     global ADMINS, EXTRA_GROUPS, USERS, BANNED, DEALS, DICE_PREDS, COIN_PREDS, PRED_INDEX
     try:
-        if os.path.exists("admins.json"):
-            with open("admins.json") as f: ADMINS = json.load(f)
-        if os.path.exists("extra_groups.json"):
-            with open("extra_groups.json") as f: EXTRA_GROUPS = json.load(f)
-        if os.path.exists("users.json"):
-            with open("users.json") as f: USERS = json.load(f)
-        if os.path.exists("banned.json"):
-            with open("banned.json") as f: BANNED = json.load(f)
-        if os.path.exists("deals.json"):
-            with open("deals.json") as f: DEALS = json.load(f)
-        if os.path.exists("dice_preds.json"):
-            with open("dice_preds.json") as f: DICE_PREDS = json.load(f)
-        if os.path.exists("coin_preds.json"):
-            with open("coin_preds.json") as f: COIN_PREDS = json.load(f)
-        if os.path.exists("pred_index.json"):
-            with open("pred_index.json") as f: PRED_INDEX = json.load(f)
+        for fname, gvar in [
+            ("admins.json", "ADMINS"), ("extra_groups.json", "EXTRA_GROUPS"),
+            ("users.json", "USERS"), ("banned.json", "BANNED"),
+            ("deals.json", "DEALS"), ("dice_preds.json", "DICE_PREDS"),
+            ("coin_preds.json", "COIN_PREDS"), ("pred_index.json", "PRED_INDEX")
+        ]:
+            if os.path.exists(fname):
+                with open(fname) as f:
+                    data = json.load(f)
+                    if fname == "pred_index.json":
+                        PRED_INDEX = data
+                    else:
+                        globals()[gvar] = data
     except Exception as e:
         print(f"⚠️ Load error (normal if first run): {e}")
 
@@ -509,8 +517,18 @@ async def cb(upd, ctx):
 
 # ====== MAIN ======
 def main():
+    # Wait for Flask to be ready
+    time.sleep(2)
+    
+    # Start Flask in background
     t = threading.Thread(target=run_flask, daemon=True)
     t.start()
+    
+    # Give Flask a moment
+    time.sleep(1)
+    
+    print(f"🚀 Starting bot with polling... Owner: {OWNER_ID}")
+    
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("dice", dice))
@@ -528,11 +546,16 @@ def main():
     app.add_handler(CommandHandler("addadmin", addadmin))
     app.add_handler(CommandHandler("removeadmin", removeadmin))
     app.add_handler(CommandHandler("sendalso", sendalso))
-    # FIXED: filters.ChatType.GROUPS instead of filters.GROUP
     app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.GROUPS, form_handler))
     app.add_handler(CallbackQueryHandler(cb))
-    print(f"✅ BOT STARTED! Owner: {OWNER_ID} | Premium Emojis: {len(EMOJIS)}")
-    app.run_polling(allowed_updates=["message", "callback_query"])
+    
+    print(f"✅ BOT IS RUNNING! Send /start to @KALYUGESCROWSERVICE_BOT")
+    
+    # Use polling (not webhook)
+    app.run_polling(
+        allowed_updates=["message", "callback_query"],
+        drop_pending_updates=True
+    )
 
 if __name__ == "__main__":
     main()
